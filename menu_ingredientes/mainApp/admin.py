@@ -12,12 +12,6 @@ class IngredienteAdmin(admin.ModelAdmin):
     list_filter = ['unidad_medida']
     search_fields = ['nombre']
 
-@admin.register(Plato)
-class PlatoAdmin(admin.ModelAdmin):
-    list_display = ['nombre', 'precio', 'categoria', 'activo']
-    list_filter = ['categoria', 'activo']
-    search_fields = ['nombre']
-
 class RecetaInline(admin.TabularInline):
     model = Receta
     extra = 1
@@ -25,6 +19,8 @@ class RecetaInline(admin.TabularInline):
 @admin.register(Plato)
 class PlatoAdmin(admin.ModelAdmin):
     list_display = ['nombre', 'precio', 'categoria', 'activo']
+    list_filter = ['categoria', 'activo']
+    search_fields = ['nombre']
     inlines = [RecetaInline]
 
 @admin.register(Stock)

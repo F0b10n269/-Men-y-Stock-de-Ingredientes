@@ -1,4 +1,4 @@
-# ✅ IMPORTS CORRECTOS
+# IMPORTS
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,11 +6,12 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from .models import CategoriaMenu, Ingrediente, Plato, Receta, Stock, ReservaStock
 
-# ✅ SERIALIZERS SIMPLES (sin DRF)
+# SERIALIZERS (Simples, sin DRF)
 class PlatoSerializer:
-    def __init__(self, instance=None, data=None):
-        self.instance = instance
+    def __init__(self, instance=None, data=None, partial=False):
+        self.instance = instance  # ✅ Esta línea estaba sin indentación
         self.data = data
+        self.partial = partial  # Para soportar PATCH
     
     def to_representation(self, instance):
         return {
@@ -18,42 +19,108 @@ class PlatoSerializer:
             'nombre': instance.nombre,
             'descripcion': instance.descripcion,
             'precio': str(instance.precio),
-            'categoria': instance.categoria.nombre if instance.categoria else None,
+            'categoria': {
+                'id': instance.categoria.id if instance.categoria else None,
+                'nombre': instance.categoria.nombre if instance.categoria else None
+            },
             'activo': instance.activo,
             'recetas': [
                 {
+                    'id': receta.id,
                     'ingrediente': receta.ingrediente.nombre,
+                    'unidad_medida': receta.ingrediente.unidad_medida,
                     'cantidad': str(receta.cantidad)
                 } for receta in instance.recetas.all()
             ]
         }
-    
+
     def is_valid(self):
         if not self.data:
             return False
-        required_fields = ['nombre', 'precio', 'categoria']
-        for field in required_fields:
-            if field not in self.data or not self.data[field]:
+        
+        # Para PATCH, no requerimos todos los campos
+        if not self.partial:
+            required_fields = ['nombre', 'precio', 'categoria']
+            for field in required_fields:
+                if field not in self.data or not self.data[field]:
+                    return False
+        
+        # Validar precio si se está actualizando
+        if 'precio' in self.data:
+            try:
+                precio = float(self.data['precio'])
+                if precio <= 0:
+                    return False
+            except (TypeError, ValueError):
                 return False
+        
+        # Validar categoría si se está actualizando
+        if 'categoria' in self.data:
+            try:
+                CategoriaMenu.objects.get(id=self.data['categoria'])
+            except CategoriaMenu.DoesNotExist:
+                return False
+
         return True
-    
+
     def save(self):
         if self.instance:
-            # Update
-            self.instance.nombre = self.data['nombre']
-            self.instance.descripcion = self.data.get('descripcion', '')
-            self.instance.precio = self.data['precio']
-            self.instance.categoria_id = self.data['categoria']
+            # UPDATE - Solo actualizar campos que vienen en data
+            if 'nombre' in self.data:
+                self.instance.nombre = self.data['nombre']
+            if 'descripcion' in self.data:
+                self.instance.descripcion = self.data.get('descripcion', '')
+            if 'precio' in self.data:
+                self.instance.precio = self.data['precio']
+            if 'categoria' in self.data:
+                self.instance.categoria_id = self.data['categoria']
+            
             self.instance.save()
+            
+            # Manejar recetas si vienen en los datos
+            if 'recetas' in self.data:
+                # Eliminar recetas existentes y crear nuevas
+                self.instance.recetas.all().delete()
+                recetas_data = self.data.get('recetas', [])
+                for receta_data in recetas_data:
+                    ingrediente_id = receta_data.get('ingrediente_id')
+                    cantidad = receta_data.get('cantidad')
+                    if ingrediente_id and cantidad:
+                        try:
+                            ingrediente = Ingrediente.objects.get(id=ingrediente_id)
+                            Receta.objects.create(
+                                plato=self.instance,
+                                ingrediente=ingrediente,
+                                cantidad=cantidad
+                            )
+                        except Ingrediente.DoesNotExist:
+                            continue
+            
             return self.instance
         else:
-            # Create
-            return Plato.objects.create(
+            # CREATE - Código existente
+            plato = Plato.objects.create(
                 nombre=self.data['nombre'],
                 descripcion=self.data.get('descripcion', ''),
                 precio=self.data['precio'],
                 categoria_id=self.data['categoria']
             )
+            
+            recetas_data = self.data.get('recetas', [])
+            for receta_data in recetas_data:
+                ingrediente_id = receta_data.get('ingrediente_id')
+                cantidad = receta_data.get('cantidad')
+                if ingrediente_id and cantidad:
+                    try:
+                        ingrediente = Ingrediente.objects.get(id=ingrediente_id)
+                        Receta.objects.create(
+                            plato=plato,
+                            ingrediente=ingrediente,
+                            cantidad=cantidad
+                        )
+                    except Ingrediente.DoesNotExist:
+                        continue
+            return plato
 
 class IngredienteSerializer:
     def to_representation(self, instance):
@@ -64,6 +131,7 @@ class IngredienteSerializer:
             'stock_minimo': instance.stock_minimo
         }
 
+
 class StockSerializer:
     def to_representation(self, instance):
         return {
@@ -72,7 +140,7 @@ class StockSerializer:
             'cantidad_disponible': str(instance.cantidad_disponible)
         }
 
-# ✅ SERVICIO DE STOCK
+# SERVICIO DE STOCK
 class StockService:
     
     @transaction.atomic
@@ -113,11 +181,66 @@ class StockService:
         except Stock.DoesNotExist:
             raise ValidationError("Error en configuración de stock")
 
-# ✅ VIEWSETS
+# VIEWSETS
 class PlatoViewSet(viewsets.ViewSet):
+
+    # ... tus métodos existentes (list, retrieve, create, destroy) ...
     
+    def update(self, request, pk=None):
+        """
+        PUT /api/platos/{id}/ - Actualizar plato existente
+        """
+        try:
+            plato = Plato.objects.get(pk=pk, activo=True)
+        except Plato.DoesNotExist:
+            return Response(
+                {'error': 'Plato no encontrado'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        serializer = PlatoSerializer(instance=plato, data=request.data)
+        if serializer.is_valid():
+            plato_actualizado = serializer.save()
+            return Response({
+                'id': plato_actualizado.id,
+                'message': 'Plato actualizado exitosamente',
+                'nombre': plato_actualizado.nombre
+            })
+        
+        return Response(
+            {'error': 'Datos inválidos para actualización'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    def partial_update(self, request, pk=None):
+        """
+        PATCH /api/platos/{id}/ - Actualización parcial del plato
+        """
+        try:
+            plato = Plato.objects.get(pk=pk, activo=True)
+        except Plato.DoesNotExist:
+            return Response(
+                {'error': 'Plato no encontrado'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Para PATCH, permitimos actualización parcial
+        serializer = PlatoSerializer(instance=plato, data=request.data, partial=True)
+        if serializer.is_valid():
+            plato_actualizado = serializer.save()
+            return Response({
+                'id': plato_actualizado.id,
+                'message': 'Plato actualizado parcialmente',
+                'nombre': plato_actualizado.nombre
+            })
+        
+        return Response(
+            {'error': 'Datos inválidos para actualización'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     def list(self, request):
-        platos = Plato.objects.filter(activo=True)
+        platos = Plato.objects.filter(activo=True).select_related('categoria')
         serializer = PlatoSerializer()
         data = [serializer.to_representation(plato) for plato in platos]
         return Response(data)
@@ -142,7 +265,7 @@ class PlatoViewSet(viewsets.ViewSet):
                 status=status.HTTP_201_CREATED
             )
         return Response(
-            {'error': 'Datos inválidos'}, 
+            {'error': 'Datos inválidos o categoría inexistente o precio no válido'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
     
@@ -151,7 +274,7 @@ class PlatoViewSet(viewsets.ViewSet):
             plato = Plato.objects.get(pk=pk)
             plato.activo = False
             plato.save()
-            return Response({'message': 'Plato desactivado'})
+            return Response({'message': 'Plato desactivado exitosamente'})
         except Plato.DoesNotExist:
             return Response(
                 {'error': 'Plato no encontrado'}, 

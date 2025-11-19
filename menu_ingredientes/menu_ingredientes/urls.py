@@ -12,4 +12,5 @@ router.register(r'stock', StockViewSet, basename='stock')
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
+    path('', include('mainApp.urls_web')),  
 ]

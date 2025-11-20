@@ -5,6 +5,9 @@ from rest_framework.response import Response
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from .models import CategoriaMenu, Ingrediente, Plato, Receta, Stock, ReservaStock
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from .forms import PlatoForm, StockForm
 
 # SERIALIZERS (Simples, sin DRF)
 class PlatoSerializer:
@@ -336,3 +339,78 @@ class StockViewSet(viewsets.ViewSet):
                 'success': False,
                 'message': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# -------------------- VISTAS WEB (interfaz tradicional) --------------------
+def plato_list(request):
+    platos = Plato.objects.filter(activo=True).select_related('categoria')
+    return render(request, 'mainApp/plato_list.html', {'platos': platos})
+
+
+def plato_create(request):
+    if request.method == 'POST':
+        form = PlatoForm(request.POST)
+        if form.is_valid():
+            plato = form.save()
+            messages.success(request, 'Plato creado exitosamente')
+            return redirect('plato_list')
+    else:
+        form = PlatoForm()
+    return render(request, 'mainApp/plato_form.html', {'form': form, 'title': 'Nuevo Plato'})
+
+
+def plato_update(request, pk):
+    plato = get_object_or_404(Plato, pk=pk)
+    if request.method == 'POST':
+        form = PlatoForm(request.POST, instance=plato)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Plato actualizado')
+            return redirect('plato_list')
+    else:
+        form = PlatoForm(instance=plato)
+    return render(request, 'mainApp/plato_form.html', {'form': form, 'title': 'Editar Plato'})
+
+
+def plato_delete(request, pk):
+    plato = get_object_or_404(Plato, pk=pk)
+    plato.activo = False
+    plato.save()
+    messages.success(request, 'Plato desactivado')
+    return redirect('plato_list')
+
+
+def stock_list(request):
+    stocks = Stock.objects.select_related('ingrediente').all()
+    return render(request, 'mainApp/stock_list.html', {'stocks': stocks})
+
+
+def stock_update(request, pk):
+    stock = get_object_or_404(Stock, pk=pk)
+    if request.method == 'POST':
+        form = StockForm(request.POST, instance=stock)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Stock actualizado')
+            return redirect('stock_list')
+    else:
+        form = StockForm(instance=stock)
+    return render(request, 'mainApp/plato_form.html', {'form': form, 'title': 'Editar Stock'})
+
+
+def simular_pedido(request):
+    mensaje = None
+    if request.method == 'POST':
+        plato_id = request.POST.get('plato_id')
+        cantidad = request.POST.get('cantidad')
+        pedido_id = request.POST.get('pedido_id')
+        try:
+            cantidad = int(cantidad)
+            stock_service = StockService()
+            reserva = stock_service.validar_y_reservar_stock(plato_id, cantidad, pedido_id)
+            mensaje = f"Reserva creada: {reserva.id}"
+        except Exception as e:
+            mensaje = str(e)
+
+    platos = Plato.objects.filter(activo=True)
+    return render(request, 'mainApp/simular_pedido.html', {'platos': platos, 'mensaje': mensaje})

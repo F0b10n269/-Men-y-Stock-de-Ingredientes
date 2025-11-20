@@ -14,6 +14,12 @@ urlpatterns = [
     path('categoria/<int:pk>/delete/', views.categoria_delete, name='categoria_delete'),
 
     path('stock/', views.stock_list, name='stock_list'),
+    path('stock/new/', views.stock_create, name='stock_create'),
+    # Ingredientes
+    path('ingredientes/', views.ingrediente_list, name='ingrediente_list'),
+    path('ingrediente/new/', views.ingrediente_create, name='ingrediente_create'),
+    path('ingrediente/<int:pk>/edit/', views.ingrediente_update, name='ingrediente_update'),
+    path('ingrediente/<int:pk>/delete/', views.ingrediente_delete, name='ingrediente_delete'),
     path('stock/<int:pk>/edit/', views.stock_update, name='stock_update'),
 
     path('simular/', views.simular_pedido, name='simular_pedido'),

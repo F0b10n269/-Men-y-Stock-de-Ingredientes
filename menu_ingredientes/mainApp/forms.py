@@ -24,3 +24,9 @@ class CategoriaForm(forms.ModelForm):
     class Meta:
         model = CategoriaMenu
         fields = ['nombre', 'descripcion']
+
+
+class IngredienteForm(forms.ModelForm):
+    class Meta:
+        model = Ingrediente
+        fields = ['nombre', 'unidad_medida', 'stock_minimo']

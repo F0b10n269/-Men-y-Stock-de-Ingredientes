@@ -7,7 +7,9 @@ from django.core.exceptions import ValidationError
 from .models import CategoriaMenu, Ingrediente, Plato, Receta, Stock, ReservaStock
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from .forms import PlatoForm, StockForm, CategoriaForm
+from django.forms import inlineformset_factory
+from .forms import PlatoForm, StockForm, CategoriaForm, IngredienteForm, RecetaInlineForm
+from .models import CategoriaMenu, Ingrediente, Plato, Receta, Stock, ReservaStock
 
 # SERIALIZERS (Simples, sin DRF)
 class PlatoSerializer:
@@ -348,28 +350,42 @@ def plato_list(request):
 
 
 def plato_create(request):
+    RecetaFormSet = inlineformset_factory(Plato, Receta, form=RecetaInlineForm, extra=1, can_delete=True)
     if request.method == 'POST':
         form = PlatoForm(request.POST)
         if form.is_valid():
             plato = form.save()
-            messages.success(request, 'Plato creado exitosamente')
-            return redirect('plato_list')
+            formset = RecetaFormSet(request.POST, instance=plato)
+            if formset.is_valid():
+                formset.save()
+                messages.success(request, 'Plato creado exitosamente')
+                return redirect('plato_list')
+            else:
+                # si el formset no es válido, borrar el plato creado para mantener consistencia
+                plato.delete()
+        else:
+            formset = RecetaFormSet(request.POST)
     else:
         form = PlatoForm()
-    return render(request, 'mainApp/plato_form.html', {'form': form, 'title': 'Nuevo Plato'})
+        formset = RecetaFormSet()
+    return render(request, 'mainApp/plato_form.html', {'form': form, 'formset': formset, 'title': 'Nuevo Plato'})
 
 
 def plato_update(request, pk):
     plato = get_object_or_404(Plato, pk=pk)
+    RecetaFormSet = inlineformset_factory(Plato, Receta, form=RecetaInlineForm, extra=1, can_delete=True)
     if request.method == 'POST':
         form = PlatoForm(request.POST, instance=plato)
-        if form.is_valid():
+        formset = RecetaFormSet(request.POST, instance=plato)
+        if form.is_valid() and formset.is_valid():
             form.save()
+            formset.save()
             messages.success(request, 'Plato actualizado')
             return redirect('plato_list')
     else:
         form = PlatoForm(instance=plato)
-    return render(request, 'mainApp/plato_form.html', {'form': form, 'title': 'Editar Plato'})
+        formset = RecetaFormSet(instance=plato)
+    return render(request, 'mainApp/plato_form.html', {'form': form, 'formset': formset, 'title': 'Editar Plato'})
 
 
 def plato_delete(request, pk):
@@ -395,7 +411,19 @@ def stock_update(request, pk):
             return redirect('stock_list')
     else:
         form = StockForm(instance=stock)
-    return render(request, 'mainApp/plato_form.html', {'form': form, 'title': 'Editar Stock'})
+    return render(request, 'mainApp/stock_form.html', {'form': form, 'title': 'Editar Stock'})
+
+
+def stock_create(request):
+    if request.method == 'POST':
+        form = StockForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Stock creado')
+            return redirect('stock_list')
+    else:
+        form = StockForm()
+    return render(request, 'mainApp/stock_form.html', {'form': form, 'title': 'Nuevo Stock'})
 
 
 def simular_pedido(request):
@@ -452,3 +480,40 @@ def categoria_delete(request, pk):
     categoria.delete()
     messages.success(request, 'Categoría eliminada')
     return redirect('categoria_list')
+
+
+def ingrediente_list(request):
+    ingredientes = Ingrediente.objects.all()
+    return render(request, 'mainApp/ingrediente_list.html', {'ingredientes': ingredientes})
+
+
+def ingrediente_create(request):
+    if request.method == 'POST':
+        form = IngredienteForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Ingrediente creado')
+            return redirect('ingrediente_list')
+    else:
+        form = IngredienteForm()
+    return render(request, 'mainApp/ingrediente_form.html', {'form': form, 'title': 'Nuevo Ingrediente'})
+
+
+def ingrediente_update(request, pk):
+    ingrediente = get_object_or_404(Ingrediente, pk=pk)
+    if request.method == 'POST':
+        form = IngredienteForm(request.POST, instance=ingrediente)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Ingrediente actualizado')
+            return redirect('ingrediente_list')
+    else:
+        form = IngredienteForm(instance=ingrediente)
+    return render(request, 'mainApp/ingrediente_form.html', {'form': form, 'title': 'Editar Ingrediente'})
+
+
+def ingrediente_delete(request, pk):
+    ingrediente = get_object_or_404(Ingrediente, pk=pk)
+    ingrediente.delete()
+    messages.success(request, 'Ingrediente eliminado')
+    return redirect('ingrediente_list')

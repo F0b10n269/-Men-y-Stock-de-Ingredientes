@@ -7,6 +7,12 @@ urlpatterns = [
     path('plato/<int:pk>/edit/', views.plato_update, name='plato_update'),
     path('plato/<int:pk>/delete/', views.plato_delete, name='plato_delete'),
 
+    # Categorías
+    path('categorias/', views.categoria_list, name='categoria_list'),
+    path('categoria/new/', views.categoria_create, name='categoria_create'),
+    path('categoria/<int:pk>/edit/', views.categoria_update, name='categoria_update'),
+    path('categoria/<int:pk>/delete/', views.categoria_delete, name='categoria_delete'),
+
     path('stock/', views.stock_list, name='stock_list'),
     path('stock/<int:pk>/edit/', views.stock_update, name='stock_update'),
 

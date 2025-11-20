@@ -7,7 +7,7 @@ from django.core.exceptions import ValidationError
 from .models import CategoriaMenu, Ingrediente, Plato, Receta, Stock, ReservaStock
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from .forms import PlatoForm, StockForm
+from .forms import PlatoForm, StockForm, CategoriaForm
 
 # SERIALIZERS (Simples, sin DRF)
 class PlatoSerializer:
@@ -414,3 +414,41 @@ def simular_pedido(request):
 
     platos = Plato.objects.filter(activo=True)
     return render(request, 'mainApp/simular_pedido.html', {'platos': platos, 'mensaje': mensaje})
+
+
+# -------------------- VISTAS CATEGORÍAS --------------------
+def categoria_list(request):
+    categorias = CategoriaMenu.objects.all()
+    return render(request, 'mainApp/categoria_list.html', {'categorias': categorias})
+
+
+def categoria_create(request):
+    if request.method == 'POST':
+        form = CategoriaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Categoría creada exitosamente')
+            return redirect('categoria_list')
+    else:
+        form = CategoriaForm()
+    return render(request, 'mainApp/categoria_form.html', {'form': form, 'title': 'Nueva Categoría'})
+
+
+def categoria_update(request, pk):
+    categoria = get_object_or_404(CategoriaMenu, pk=pk)
+    if request.method == 'POST':
+        form = CategoriaForm(request.POST, instance=categoria)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Categoría actualizada')
+            return redirect('categoria_list')
+    else:
+        form = CategoriaForm(instance=categoria)
+    return render(request, 'mainApp/categoria_form.html', {'form': form, 'title': 'Editar Categoría'})
+
+
+def categoria_delete(request, pk):
+    categoria = get_object_or_404(CategoriaMenu, pk=pk)
+    categoria.delete()
+    messages.success(request, 'Categoría eliminada')
+    return redirect('categoria_list')

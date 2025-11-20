@@ -1,5 +1,5 @@
 from django import forms
-from .models import Plato, Receta, Ingrediente, Stock
+from .models import Plato, Receta, Ingrediente, Stock, CategoriaMenu
 
 
 class PlatoForm(forms.ModelForm):
@@ -18,3 +18,9 @@ class StockForm(forms.ModelForm):
     class Meta:
         model = Stock
         fields = ['ingrediente', 'cantidad_disponible']
+
+
+class CategoriaForm(forms.ModelForm):
+    class Meta:
+        model = CategoriaMenu
+        fields = ['nombre', 'descripcion']
